@@ -141,12 +141,12 @@ fn verify_ecdsa_signature(
     let message: [u8; 32] = payload_hashed
         .try_into()
         .map_err(|_| VerifyError::BadPayloadFormat)?;
-    let public_key: [u8; 33] = signer
+    let public_key: [u8; 32] = signer
         .try_into()
         .map_err(|_| VerifyError::BadPublicKeyFormat)?;
 
     match sp_io::crypto::secp256k1_ecdsa_recover(&signature, &message) {
-        Ok(pubkey) if pubkey[..32] == public_key[1..] => Ok(()),
+        Ok(pubkey) if pubkey[..32] == public_key => Ok(()),
         _ => Err(VerifyError::Invalid),
     }
 }

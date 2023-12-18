@@ -48,6 +48,7 @@ impl DoughnutApi for () {
 #[cfg(feature = "crypto")]
 pub mod crypto {
     //! Crypto.verification and signing impls for Doughnut types
+    use sp_core::bounded::BoundedVec;
     use crate::{
         alloc::vec::Vec,
         doughnut::Doughnut,
@@ -56,12 +57,14 @@ pub mod crypto {
         traits::{DoughnutApi, DoughnutVerify, Signing},
         v0::DoughnutV0,
     };
-    use primitive_types::H512;
+    use sp_core::H512;
+    #[cfg(feature = "std")]
+    use crate::signature::sign_ecdsa;
 
     impl DoughnutVerify for DoughnutV0 {
         fn verify(&self) -> Result<(), VerifyError> {
             verify_signature(
-                &self.signature(),
+                &self.signature().as_slice(),
                 self.signature_version(),
                 &self.issuer(),
                 &self.payload(),
@@ -83,7 +86,7 @@ pub mod crypto {
         fn sign_ed25519(&mut self, secret_key: &[u8]) -> Result<Vec<u8>, SigningError> {
             self.signature_version = SignatureVersion::Ed25519 as u8;
             sign_ed25519(&self.issuer(), secret_key, &self.payload()).map(|signature| {
-                self.signature = H512::from_slice(&signature);
+                self.signature = BoundedVec::truncate_from(signature.to_vec());
                 signature
             })
         }
@@ -91,7 +94,16 @@ pub mod crypto {
         fn sign_sr25519(&mut self, secret_key: &[u8]) -> Result<Vec<u8>, SigningError> {
             self.signature_version = SignatureVersion::Sr25519 as u8;
             sign_sr25519(&self.issuer(), secret_key, &self.payload()).map(|signature| {
-                self.signature = H512::from_slice(&signature);
+                self.signature = BoundedVec::truncate_from(signature.to_vec());
+                signature
+            })
+        }
+
+        #[cfg(feature = "std")]
+        fn sign_ecdsa(&mut self, secret_key: &[u8]) -> Result<Vec<u8>, SigningError> {
+            self.signature_version = SignatureVersion::ECDSA as u8;
+            sign_ecdsa(secret_key, &self.payload()).map(|signature| {
+                self.signature = BoundedVec::truncate_from(signature.to_vec());
                 signature
             })
         }
@@ -114,7 +126,7 @@ mod test {
         v0::DoughnutV0,
     };
     use codec::Decode;
-    use primitive_types::H512;
+    use sp_core::H512;
     // The ed25519 and schnorrkel libs use different implementations of `OsRng`
     // two different libraries are used: `rand` and `rand_core` as a workaround
     use ed25519_dalek::Keypair as Ed25519Keypair;

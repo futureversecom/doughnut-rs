@@ -10,8 +10,8 @@
 
 use codec::{Decode, Encode, Input, Output};
 use core::convert::TryFrom;
-use primitive_types::H512;
-
+use sp_core::bounded::BoundedVec;
+use sp_core::{ConstU32, H512};
 use crate::alloc::{
     string::{String, ToString},
     vec::Vec,
@@ -24,6 +24,9 @@ const SIGNATURE_OFFSET: usize = 11;
 const VERSION_MASK: u16 = 0b0000_0111_1111_1111;
 
 const MAX_DOMAINS: usize = 128;
+const MAX_SIGNATURE_BYTES: u32 = 65;
+
+type Signature = BoundedVec<u8, ConstU32<MAX_SIGNATURE_BYTES>>;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, PartialEq, Eq, Debug, Default)]
@@ -35,7 +38,7 @@ pub struct DoughnutV0 {
     pub not_before: u32,
     pub payload_version: u16,
     pub signature_version: u8,
-    pub signature: H512,
+    pub signature: Signature,
 }
 
 impl DoughnutV0 {
@@ -96,7 +99,7 @@ impl DoughnutV0 {
         }
 
         if encode_signature {
-            dest.write(self.signature.as_bytes());
+            dest.write(self.signature.as_slice());
         }
     }
 }
@@ -112,7 +115,7 @@ impl codec::EncodeLike for DoughnutV0 {}
 impl DoughnutApi for DoughnutV0 {
     type PublicKey = [u8; 32];
     type Timestamp = u32;
-    type Signature = [u8; 64];
+    type Signature = Signature;
     /// Return the doughnut holder account ID
     fn holder(&self) -> Self::PublicKey {
         self.holder
@@ -137,7 +140,7 @@ impl DoughnutApi for DoughnutV0 {
     }
     /// Return the doughnut signature bytes
     fn signature(&self) -> Self::Signature {
-        self.signature.into()
+        self.signature.clone()
     }
     /// Return the doughnut signature version
     fn signature_version(&self) -> u8 {
@@ -216,8 +219,20 @@ impl Decode for DoughnutV0 {
             domains.push((key, payload));
         }
 
-        let mut signature = [0_u8; 64];
-        input.read(&mut signature)?;
+        let signature: Vec<u8> = match signature_version {
+            2 => {
+                // ECDSA signature is 65 bytes in length
+                let mut signature = [0_u8; 65];
+                input.read(&mut signature)?;
+                signature.to_vec()
+            }
+            _ => {
+                // Other signatures are 64 bytes length
+                let mut signature = [0_u8; 64];
+                input.read(&mut signature)?;
+                signature.to_vec()
+            },
+        };
 
         Ok(Self {
             holder,
@@ -227,7 +242,7 @@ impl Decode for DoughnutV0 {
             signature_version,
             payload_version,
             domains,
-            signature: H512::from(signature),
+            signature: BoundedVec::truncate_from(signature),
         })
     }
 }
