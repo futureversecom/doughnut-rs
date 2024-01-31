@@ -114,6 +114,9 @@ pub trait Signing {
 
     /// sign using ECDSA method
     fn sign_ecdsa(&mut self, secret_key: &[u8; 32]) -> Result<[u8; 64], SigningError>;
+    //
+    // /// Add signature using the signed type version
+    // fn add_signature(&mut self, signature: [u8; 64]) -> Result<(), SigningError>;
 }
 
 /// Provide doughnut signature checks

@@ -372,6 +372,12 @@ impl Signing for DoughnutV1 {
             signature
         })
     }
+
+    // fn add_signature(&mut self, signature: [u8; 64]) -> Result<(), SigningError> {
+    //     self.signature = signature;
+    //     self.signature_version = SignatureVersion::SignedTypeData as u8;
+    //     Ok(())
+    // }
 }
 
 #[cfg(test)]

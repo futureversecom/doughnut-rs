@@ -22,6 +22,7 @@ pub enum SignatureVersion {
     Sr25519 = 0,
     Ed25519 = 1,
     ECDSA = 2,
+    // SignedTypeData = 3,
 }
 
 impl TryFrom<u8> for SignatureVersion {
@@ -76,6 +77,48 @@ pub fn sign_ecdsa(secret_key: &[u8; 32], payload: &[u8]) -> Result<[u8; 64], Sig
     Ok(signature.serialize())
 }
 
+// #[derive(Debug, Serialize, Deserialize)]
+// struct Eip712TypedData {
+//     domain: Domain,
+//     message: serde_json::Value,
+//     types: serde_json::Value,
+//     primary_type: String,
+// }
+//
+// #[derive(Debug, Serialize, Deserialize)]
+// struct Domain {
+//     chain_id: u64,
+//     name: String,
+//     verifying_contract: String,
+//     version: String,
+// }
+//
+// /// Sign typed data using the eth_signTypedData_v4 spec
+// pub fn sign_typed_data(secret_key: &[u8; 32], typed_data: &Eip712TypedData,) -> Result<[u8; 64], SigningError> {
+//     // Encode data
+//     let encoded_data = eip712_encode(&typed_data)?;
+//     // Hash encoded data
+//     let hashed_data = blake2_256(&encoded_data);
+//
+//     // Sign hashed data
+//     let secret_key = libsecp256k1::SecretKey::parse_slice(secret_key)
+//         .map_err(|_| SigningError::InvalidECDSASecretKey)?;
+//     let message = libsecp256k1::Message::parse_slice(&hashed_data)
+//         .map_err(|_| SigningError::InvalidPayload)?;
+//     let (signature, _) = libsecp256k1::sign(&message, &secret_key);
+//     Ok(signature.serialize())
+// }
+//
+// /// Encode eip712 data
+// fn eip712_encode(typed_data: &Eip712TypedData) -> Result<Vec<u8>, SigningError> {
+//     let typed_data_json = serde_json::to_string(typed_data)?;
+//
+//     // Hash the JSON string
+//     let hash = blake2_256(typed_data_json.as_bytes());
+//
+//     Ok(hash.to_vec())
+// }
+
 /// Verify the signature for a `DoughnutApi` impl type
 #[allow(clippy::module_name_repetitions)]
 pub fn verify_signature(
@@ -89,6 +132,7 @@ pub fn verify_signature(
         SignatureVersion::Ed25519 => verify_ed25519_signature(signature_bytes, signer, payload),
         SignatureVersion::Sr25519 => verify_sr25519_signature(signature_bytes, signer, payload),
         SignatureVersion::ECDSA => verify_ecdsa_signature(signature_bytes, signer, payload),
+        // SignatureVersion::SignedTypeData => verify_signed_type_signature(signature_bytes, signer, payload),
     }
 }
 
@@ -144,6 +188,20 @@ pub fn verify_ecdsa_signature(
         false => Err(VerifyError::Invalid),
     }
 }
+//
+// /// Verify an ecdsa signature
+// pub fn verify_signed_type_signature(
+//     signature_bytes: &[u8],
+//     signer: &[u8],
+//     payload: &[u8],
+// ) -> Result<(), VerifyError> {
+//     // TODO, maybe needs the whole doughnut?
+//
+//     match libsecp256k1::verify(&message, &signature, &pub_key) {
+//         true => Ok(()),
+//         false => Err(VerifyError::Invalid),
+//     }
+// }
 
 fn blake2_256(data: &[u8]) -> [u8; 32] {
     let mut hash = [0_u8; 32];
