@@ -8,6 +8,7 @@ extern crate alloc;
 use alloc::{format, string::ToString, vec::Vec};
 use codec::{Decode, Encode};
 use core::convert::TryInto;
+use doughnut_rs::signature::SignatureVersion;
 use doughnut_rs::{
     doughnut::{Doughnut, DoughnutV0, DoughnutV1},
     traits::{DoughnutApi, DoughnutVerify, PayloadVersion, Signing},
@@ -173,25 +174,65 @@ impl JsHandle {
     }
 
     #[allow(non_snake_case)]
-    /// Add EIP191 signature
-    pub fn addSignature(&mut self, signature: &[u8]) -> Result<JsHandle, JsValue> {
-        // only PayloadVersion::V1 supports ECDSA
+    /// Sign and return EIP191 signature
+    pub fn signEIP191(&mut self, secret_key: &[u8]) -> Result<JsHandle, JsValue> {
+        // only PayloadVersion::V1 supports EIP191
         if self.payloadVersion() != PayloadVersion::V1 as u16 {
             panic!("unsupported doughnut version and signing scheme");
         }
 
-        let signature: [u8; 65] = signature
+        let secret_key: [u8; 32] = secret_key
             .try_into()
-            .map_err(|_| JsValue::from_str("invalid signature"))?;
+            .map_err(|_| JsValue::from_str("invalid secret key"))?;
         if let Doughnut::V1(ref mut doughnut) = &mut self.0 {
             let _signature = doughnut
-                .add_eip191_signature(&signature)
+                .sign_eip191(&secret_key)
                 .map(|_| ())
                 // throws: 'undefined' in JS on error
                 .map_err(|_| JsValue::undefined())?;
             return Ok(self.clone());
         }
         panic!("unsupported doughnut version");
+    }
+
+    #[allow(non_snake_case)]
+    /// Add signature to doughnut
+    pub fn addSignature(
+        &mut self,
+        signature: &[u8],
+        signature_version: u8,
+    ) -> Result<JsHandle, JsValue> {
+        match &mut self.0 {
+            Doughnut::V0(v0) => {
+                // PayloadVersion::V0 supports SignatureVersion::Ed25519, SignatureVersion::Sr25519
+                if !(signature_version == SignatureVersionJS::Ed25519 as u8
+                    || signature_version == SignatureVersionJS::Sr25519 as u8)
+                {
+                    panic!("unsupported doughnut version and signature version");
+                }
+                let signature: [u8; 64] = signature
+                    .try_into()
+                    .map_err(|_| JsValue::from_str("invalid signature"))?;
+                v0.signature_version = signature_version as u8;
+                v0.signature = signature.into();
+                return Ok(self.clone());
+            }
+            Doughnut::V1(v1) => {
+                // PayloadVersion::V1 supports SignatureVersion::ECDSA, SignatureVersion::EIP191
+                if !(signature_version == SignatureVersionJS::ECDSA as u8
+                    || signature_version == SignatureVersionJS::EIP191 as u8)
+                {
+                    panic!("unsupported doughnut version and signature version");
+                }
+                let signature: [u8; 65] = signature
+                    .try_into()
+                    .map_err(|_| JsValue::from_str("invalid signature"))?;
+                v1.signature_version = signature_version as u8;
+                v1.signature = signature;
+                return Ok(self.clone());
+            }
+            _ => panic!("unsupported doughnut version"),
+        }
     }
 
     /// Return the doughnut issuer
@@ -344,4 +385,27 @@ impl JsHandle {
             }
         }
     }
+}
+
+// enum to represent PayloadVersion
+#[wasm_bindgen(js_name = PayloadVersion)]
+pub enum PayloadVersionJS {
+    V0 = 0,
+    V1 = 1,
+}
+
+// enum to represent SignatureVersion
+#[wasm_bindgen(js_name = SignatureVersion)]
+pub enum SignatureVersionJS {
+    Sr25519 = 0,
+    Ed25519 = 1,
+    ECDSA = 2,
+    EIP191 = 3,
+}
+
+// enum to represent FeeMode
+#[wasm_bindgen(js_name = FeeMode)]
+pub enum FeeModeJS {
+    ISSUER = 0,
+    HOLDER = 1,
 }
