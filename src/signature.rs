@@ -1,6 +1,6 @@
 // Copyright 2022-2023 Futureverse Corporation Limited
 
-use crate::alloc::vec::Vec;
+use crate::alloc::{string::ToString, vec::Vec};
 use crate::error::{SigningError, VerifyError};
 use blake2::{digest, Digest};
 use core::convert::{TryFrom, TryInto};
@@ -22,6 +22,7 @@ pub enum SignatureVersion {
     Sr25519 = 0,
     Ed25519 = 1,
     ECDSA = 2,
+    EIP191 = 3,
 }
 
 impl TryFrom<u8> for SignatureVersion {
@@ -31,6 +32,7 @@ impl TryFrom<u8> for SignatureVersion {
             0 => Ok(Self::Sr25519),
             1 => Ok(Self::Ed25519),
             2 => Ok(Self::ECDSA),
+            3 => Ok(Self::EIP191),
             _ => Err(VerifyError::UnsupportedVersion),
         }
     }
@@ -66,14 +68,18 @@ pub fn sign_sr25519(
 }
 
 /// Sign an ecdsa signature
-pub fn sign_ecdsa(secret_key: &[u8; 32], payload: &[u8]) -> Result<[u8; 64], SigningError> {
+pub fn sign_ecdsa(secret_key: &[u8; 32], payload: &[u8]) -> Result<[u8; 65], SigningError> {
     let payload_hashed = blake2_256(payload);
     let secret_key = libsecp256k1::SecretKey::parse_slice(secret_key)
         .map_err(|_| SigningError::InvalidECDSASecretKey)?;
     let message = libsecp256k1::Message::parse_slice(&payload_hashed)
         .map_err(|_| SigningError::InvalidPayload)?;
     let (signature, _) = libsecp256k1::sign(&message, &secret_key);
-    Ok(signature.serialize())
+
+    // Extend the signature to 65 bytes
+    let mut signature_extended: [u8; 65] = [0; 65];
+    signature_extended[..64].copy_from_slice(&signature.serialize());
+    Ok(signature_extended)
 }
 
 /// Verify the signature for a `DoughnutApi` impl type
@@ -89,6 +95,7 @@ pub fn verify_signature(
         SignatureVersion::Ed25519 => verify_ed25519_signature(signature_bytes, signer, payload),
         SignatureVersion::Sr25519 => verify_sr25519_signature(signature_bytes, signer, payload),
         SignatureVersion::ECDSA => verify_ecdsa_signature(signature_bytes, signer, payload),
+        SignatureVersion::EIP191 => verify_eip191_signature(signature_bytes, signer, payload),
     }
 }
 
@@ -145,11 +152,51 @@ pub fn verify_ecdsa_signature(
     }
 }
 
+/// Verify an EIP191 signature
+pub fn verify_eip191_signature(
+    signature_bytes: &[u8],
+    signer: &[u8],
+    payload: &[u8],
+) -> Result<(), VerifyError> {
+    // Hash inner payload
+    let payload_hashed = blake2_256(payload);
+    let message = keccak_256(ethereum_signed_message(&payload_hashed).as_slice());
+
+    let public_key: [u8; 33] = signer
+        .try_into()
+        .map_err(|_| VerifyError::BadPublicKeyFormat)?;
+
+    let message = libsecp256k1::Message::parse(&message);
+    let signature = libsecp256k1::Signature::parse_standard_slice(&signature_bytes[..64])
+        .map_err(|_| VerifyError::BadSignatureFormat)?;
+    let pub_key = libsecp256k1::PublicKey::parse_compressed(&public_key)
+        .map_err(|_| VerifyError::BadPublicKeyFormat)?;
+
+    match libsecp256k1::verify(&message, &signature, &pub_key) {
+        true => Ok(()),
+        false => Err(VerifyError::Invalid),
+    }
+}
+
+/// Constructs the message that Ethereum RPC's `ethereum_sign` and `eth_sign` would sign.
+pub fn ethereum_signed_message(message: &[u8]) -> Vec<u8> {
+    let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
+    v.extend(message.len().to_string().as_bytes());
+    v.extend_from_slice(message);
+    v
+}
+
 fn blake2_256(data: &[u8]) -> [u8; 32] {
     let mut hash = [0_u8; 32];
     type Blake2b256 = blake2::Blake2b<U32>;
     hash.copy_from_slice(Blake2b256::digest(data).as_slice());
     hash
+}
+
+pub fn keccak_256(data: &[u8]) -> [u8; 32] {
+    let mut output = [0u8; 32];
+    output.copy_from_slice(sha3::Keccak256::digest(data).as_slice());
+    output
 }
 
 #[cfg(test)]
@@ -211,8 +258,40 @@ mod test {
     }
 
     #[test]
+    fn test_eip191_signature_verifies() {
+        let (keypair, secret_key) = generate_ecdsa_keypair();
+        let payload = "I like doughnuts".as_bytes();
+        let message = blake2_256(payload);
+        let eth_message = ethereum_signed_message(&message);
+        let signature = keypair.sign_prehashed(&keccak_256(&eth_message));
+        let public_key = keypair.public();
+
+        verify_eip191_signature(&signature.0, &public_key.as_ref(), &payload)
+            .expect("Signed signature can be verified");
+    }
+
+    #[test]
+    fn test_eip191_signature_does_not_verify() {
+        let (keypair, secret_key) = generate_ecdsa_keypair();
+        let payload = "I like doughnuts".as_bytes();
+        let message = blake2_256(payload);
+        let eth_message = ethereum_signed_message(&message);
+        let signature = keypair.sign_prehashed(&keccak_256(&eth_message));
+        let public_key = keypair.public();
+
+        assert_eq!(
+            verify_eip191_signature(
+                &signature.0,
+                &public_key.as_ref(),
+                &"I don't like doughnuts".as_bytes()
+            ),
+            Err(VerifyError::Invalid)
+        );
+    }
+
+    #[test]
     fn can_sign_ecdsa() {
-        const ECDSA_SIGNATURE_LENGTH: usize = 64;
+        const ECDSA_SIGNATURE_LENGTH: usize = 65;
 
         let (_, secret_key) = generate_ecdsa_keypair();
         let payload = "this is a payload".as_bytes();
