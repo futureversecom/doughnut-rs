@@ -405,7 +405,7 @@ mod test {
             doughnut_builder!(
                 issuer:[0_u8; 32],
                 holder:$holder,
-                toppings:vec![("cennznet".to_string(), vec![0])],
+                toppings:vec![("trn".to_string(), vec![0])],
                 expiry: $expiry,
                 not_before: $not_before,
                 payload_version: 0,
@@ -420,7 +420,7 @@ mod test {
             doughnut_builder!(
                 issuer:[0_u8; 32],
                 holder:[1_u8; 32],
-                toppings:vec![("cennznet".to_string(), vec![0])],
+                toppings:vec![("trn".to_string(), vec![0])],
                 expiry: 0,
                 not_before: 0,
                 payload_version: $pv,

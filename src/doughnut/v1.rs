@@ -30,7 +30,7 @@ use core::convert::TryFrom;
 
 const NOT_BEFORE_MASK: u8 = 0b0000_0001;
 
-const MAX_toppingS: usize = 128;
+const MAX_TOPPINGS: usize = 128;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -71,7 +71,7 @@ impl DoughnutV1 {
         encode_signature: bool,
     ) {
         // Defensive early return when there are no toppings
-        if self.toppings.is_empty() || self.toppings.len() > MAX_toppingS {
+        if self.toppings.is_empty() || self.toppings.len() > MAX_TOPPINGS {
             return;
         }
         let topping_count = u8::try_from(self.toppings.len() - 1);
@@ -432,7 +432,7 @@ mod test {
                 issuer:[0_u8; 33],
                 holder:$holder,
                 fee_mode: 0,
-                toppings:vec![("cennznet".to_string(), vec![0])],
+                toppings:vec![("trn".to_string(), vec![0])],
                 expiry: $expiry,
                 not_before: $not_before,
                 payload_version: 0,
@@ -450,7 +450,7 @@ mod test {
                 issuer:[0_u8; 33],
                 holder:$holder,
                 fee_mode: $fee_mode,
-                toppings:vec![("cennznet".to_string(), vec![0])],
+                toppings:vec![("trn".to_string(), vec![0])],
                 expiry: $expiry,
                 not_before: $not_before,
                 payload_version: 0,
@@ -466,7 +466,7 @@ mod test {
                 issuer:[0_u8; 33],
                 holder:[1_u8; 33],
                 fee_mode: 0,
-                toppings:vec![("cennznet".to_string(), vec![0])],
+                toppings:vec![("trn".to_string(), vec![0])],
                 expiry: 0,
                 not_before: 0,
                 payload_version: $pv,
@@ -660,7 +660,7 @@ mod test {
     #[test]
     fn too_many_toppings_fails_encoding() {
         let mut toppings: Vec<(String, Vec<u8>)> = vec![];
-        for x in 0..MAX_toppingS + 1 {
+        for x in 0..MAX_TOPPINGS + 1 {
             toppings.push((x.to_string(), vec![]));
         }
 
@@ -673,14 +673,14 @@ mod test {
     // #[test]
     // fn can_encode_up_to_max_toppings() {
     //     let mut toppings: Vec<(String, Vec<u8>)> = vec![];
-    //     for x in 0..MAX_toppingS {
+    //     for x in 0..MAX_TOPPINGS {
     //         toppings.push((x.to_string(), vec![]));
     //     }
 
     //     let doughnut = doughnut_builder!(toppings: toppings,);
 
     //     let encoded = doughnut.encode();
-    //     let expected_length = 135 + (18 * MAX_toppingS);
+    //     let expected_length = 135 + (18 * MAX_TOPPINGS);
 
     //     assert_eq!(encoded.len(), expected_length);
     // }

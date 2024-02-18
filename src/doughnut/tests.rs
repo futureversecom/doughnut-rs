@@ -178,11 +178,11 @@ fn versioned_enum_v0_sr25519_verification() {
     );
     assert_eq!(
         d.toppings[0],
-        ("topping 1".to_string(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ("Domain 1".to_string(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     );
     assert_eq!(
         d.toppings[1],
-        ("topping 2".to_string(), vec![10, 11, 12, 13, 14, 15])
+        ("Domain 2".to_string(), vec![10, 11, 12, 13, 14, 15])
     );
     assert_eq!(d.toppings.len(), 2);
 
@@ -234,11 +234,11 @@ fn versioned_enum_v0_ed25519_verification() {
     );
     assert_eq!(
         d.toppings[0],
-        ("topping 1".to_string(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        ("Domain 1".to_string(), vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
     );
     assert_eq!(
         d.toppings[1],
-        ("topping 2".to_string(), vec![10, 11, 12, 13, 14, 15])
+        ("Domain 2".to_string(), vec![10, 11, 12, 13, 14, 15])
     );
     assert_eq!(d.toppings.len(), 2);
 
