@@ -3,9 +3,8 @@ name: Publish to Crates.io
 on:
   workflow_dispatch:
 
-# Note: The `doughtnut-js` package version is based on the `js/Cargo.toml` file.
 jobs:
-  publish-npm:
+  publish-crate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,6 +13,6 @@ jobs:
         with:
           cache-on-failure: true
       - name: Publish to Crates.io
-        run: cargo publish
+        run: cargo publish --token $CARGO_REGISTRY_TOKEN
         env:
-          CARGO_TOKEN: ${{ secrets.CARGO_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
